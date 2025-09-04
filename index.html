@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PDF分割 & 連番リネーム（任意の開始値）</title>
+  <title>PDF分割 & 連番リネーム</title>
   <style>
     :root { --bg:#0b1020; --card:#121834; --muted:#9fb0ff; --accent:#6aa9ff; --text:#e9ecff; }
     *{box-sizing:border-box}
@@ -30,7 +30,7 @@
 <body>
   <div class="wrap">
     <h1>PDF分割 & カスタム連番リネーム</h1>
-    <p class="lead">PDF を 1 ページずつに分割し、<strong>任意の開始番号/文字列</strong>から <code>P03.pdf, P04.pdf...</code> や <code>DocAA.pdf...</code> のように保存します（ブラウザ内で完結・ファイルは外部送信されません）。</p>
+    <p class="lead">PDF を 1 ページずつに分割し、<strong>任意の開始番号/文字列</strong>から <code>P03.pdf, P04.pdf...</code> や <code>DocAA.pdf...</code> のように保存します。（ファイルは外部送信しないように完結）</p>
 
     <div class="card">
       <div class="grid">
@@ -50,7 +50,8 @@
         <div>
           <label>開始値</label>
           <input id="start" type="text" placeholder="例: 03 / A / AA / 0007" />
-          <div class="hint">数字モードは桁数から自動ゼロ埋め（例: 03 → 2桁固定）</div>
+          <div class="hint">数字モードは桁数から自動ゼロ埋め（例: 03 → 2桁固定）
+            ファイル名例を参照してください。↓</div>
         </div>
         <div>
           <label>ファイル名プレフィックス</label>
