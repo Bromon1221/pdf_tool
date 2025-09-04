@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF分割 & 連番リネーム（任意の開始値）</title>
+  <style>
+    :root { --bg:#0b1020; --card:#121834; --muted:#9fb0ff; --accent:#6aa9ff; --text:#e9ecff; }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0e1533 30%,#0b1020);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Apple Color Emoji","Segoe UI Emoji"}
+    .wrap{max-width:980px;margin:40px auto;padding:0 16px}
+    h1{font-size:clamp(20px,4vw,30px);letter-spacing:.02em;margin:0 0 12px}
+    p.lead{margin:0 0 24px;color:#c7d2fe}
+    .card{background:rgba(18,24,52,.75);border:1px solid rgba(255,255,255,.08);backdrop-filter: blur(8px);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 10px 40px rgba(20,25,70,.35)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+    label{display:block;font-size:13px;color:#c7d2fe;margin:0 0 6px}
+    input[type="text"],input[type="number"],select{width:100%;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#0b122a;color:var(--text);outline:none}
+    input[type="file"]{width:100%;background:#0b122a;border-radius:12px;padding:10px;border:1px dashed rgba(255,255,255,.18)}
+    .row{display:flex;gap:10px;align-items:center}
+    .btn{appearance:none;border:0;border-radius:12px;padding:12px 16px;background:linear-gradient(135deg,#5a86ff,#7cc8ff);color:#03112a;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .muted{color:#9fb0ff;font-size:13px}
+    progress{width:100%}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{padding:6px 10px;background:#0b122a;border:1px solid rgba(255,255,255,.12);border-radius:999px;font-size:12px}
+    .footer{opacity:.7;font-size:12px;margin-top:10px}
+    .hint{font-size:12px;color:#aab4ff;margin-top:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>PDF分割 & カスタム連番リネーム</h1>
+    <p class="lead">PDF を 1 ページずつに分割し、<strong>任意の開始番号/文字列</strong>から <code>P03.pdf, P04.pdf...</code> や <code>DocAA.pdf...</code> のように保存します（ブラウザ内で完結・ファイルは外部送信されません）。</p>
+
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>PDFファイルを選択</label>
+          <input id="file" type="file" accept="application/pdf" />
+          <div class="hint">複数ページの PDF に対応します</div>
+        </div>
+        <div>
+          <label>モード</label>
+          <select id="mode">
+            <option value="number">数字（…01, 02, 03）</option>
+            <option value="alpha">英字（…A, B, C / …AA, AB, AC）</option>
+            <option value="custom">カスタム（任意の文字列を +1 的に増分）</option>
+          </select>
+        </div>
+        <div>
+          <label>開始値</label>
+          <input id="start" type="text" placeholder="例: 03 / A / AA / 0007" />
+          <div class="hint">数字モードは桁数から自動ゼロ埋め（例: 03 → 2桁固定）</div>
+        </div>
+        <div>
+          <label>ファイル名プレフィックス</label>
+          <input id="prefix" type="text" placeholder="例: P" value="P" />
+        </div>
+        <div>
+          <label>ファイル名サフィックス（拡張子の前）</label>
+          <input id="suffix" type="text" placeholder="例: _page" />
+        </div>
+        <div>
+          <label>出力</label>
+          <select id="outType">
+            <option value="zip">ZIP（推奨：一括保存）</option>
+            <option value="files">個別ファイル（連続ダウンロード）</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:12px">
+        <div>
+          <label>大文字/小文字（英字モード）</label>
+          <select id="caseSel">
+            <option value="upper">大文字（A..Z）</option>
+            <option value="lower">小文字（a..z）</option>
+          </select>
+        </div>
+        <div>
+          <label>ファイル名例</label>
+          <div class="chips" id="previewChips">
+            <span class="chip">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:16px">
+        <button id="run" class="btn" disabled>分割して保存</button>
+        <span class="muted" id="info">PDF未選択</span>
+      </div>
+      <div style="margin-top:12px">
+        <progress id="prog" value="0" max="100" hidden></progress>
+      </div>
+      <div class="footer">処理は端末内のブラウザで実行されます。大きい PDF は時間がかかる場合があります。</div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>使い方の例</summary>
+        <ul>
+          <li><strong>数字モード + 開始「03」 + プレフィックス「P」</strong> → <code>P03.pdf, P04.pdf, P05.pdf...</code></li>
+          <li><strong>英字モード + 開始「AA」</strong> → <code>AA.pdf, AB.pdf, AC.pdf...</code>（Z の次は AA, AB…）</li>
+          <li><strong>カスタム</strong> は末尾の数字列／英字列を自動インクリメント（例: <code>Sec-007A</code> → <code>Sec-007B</code> → … → <code>Sec-008A</code>）</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const fileEl = document.getElementById('file');
+    const runEl = document.getElementById('run');
+    const infoEl = document.getElementById('info');
+    const modeEl = document.getElementById('mode');
+    const startEl = document.getElementById('start');
+    const prefixEl = document.getElementById('prefix');
+    const suffixEl = document.getElementById('suffix');
+    const outTypeEl = document.getElementById('outType');
+    const caseSelEl = document.getElementById('caseSel');
+    const progEl = document.getElementById('prog');
+    const previewChips = document.getElementById('previewChips');
+
+    let numPages = 0;
+
+    fileEl.addEventListener('change', async () => {
+      if (!fileEl.files?.[0]) { runEl.disabled = true; infoEl.textContent = 'PDF未選択'; return; }
+      try {
+        const arr = await fileEl.files[0].arrayBuffer();
+        const pdf = await PDFLib.PDFDocument.load(arr);
+        numPages = pdf.getPageCount();
+        runEl.disabled = false;
+        infoEl.textContent = `ページ数: ${numPages}`;
+        updatePreview();
+      } catch (e) { console.error(e); infoEl.textContent = 'PDF読み込みに失敗しました'; runEl.disabled = true; }
+    });
+
+    [modeEl, startEl, prefixEl, suffixEl, caseSelEl].forEach(el=>{
+      el.addEventListener('input', updatePreview);
+      el.addEventListener('change', updatePreview);
+    });
+
+    function updatePreview(){
+      previewChips.innerHTML = '';
+      const names = nextNames(5);
+      names.forEach(n=>{
+        const span = document.createElement('span');
+        span.className = 'chip';
+        span.textContent = n;
+        previewChips.appendChild(span);
+      });
+    }
+
+    function nextNames(k){
+      const start = startEl.value || (modeEl.value==='number'?'01':'A');
+      const caseSel = caseSelEl.value;
+      const pre = prefixEl.value || '';
+      const suf = suffixEl.value || '';
+      const out = [];
+      let token = start;
+      for(let i=0;i<k;i++){
+        let name = `${pre}${token}${suf}.pdf`;
+        out.push(name);
+        token = incToken(token, modeEl.value, caseSel);
+      }
+      return out;
+    }
+
+    function incToken(token, mode, caseSel){
+      if(mode==='number'){
+        const pad = token.replace(/[^0-9]/g,'').length || token.length || 2;
+        const n = parseInt(token,10);
+        if(Number.isFinite(n)){
+          const next = String(n+1).padStart(String(n).length, '0');
+          return token.replace(String(n).padStart(pad,'0'), next);
+        } else {
+          return token; // そのまま
+        }
+      }
+      if(mode==='alpha'){
+        const up = caseSel==='upper';
+        const seq = token.match(/[A-Za-z]+$/)?.[0] || token;
+        const rest = token.slice(0, token.length - seq.length);
+        const nextSeq = alphaInc(seq, up);
+        return rest + nextSeq;
+      }
+      // custom: 末尾の英数字を賢くインクリメント
+      const m = token.match(/(.*?)([0-9]+|[A-Za-z]+)$/);
+      if(!m) return token + '1';
+      const head = m[1];
+      const tail = m[2];
+      let next;
+      if(/^[0-9]+$/.test(tail)){
+        next = String(parseInt(tail,10)+1).padStart(tail.length,'0');
+      } else {
+        const up = /[A-Z]/.test(tail[0]);
+        next = alphaInc(tail, up);
+      }
+      return head + next;
+    }
+
+    function alphaInc(s, upper=true){
+      // Excel風 A..Z, AA..AZ, BA.. 進み
+      const base = upper? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' : 'abcdefghijklmnopqrstuvwxyz';
+      const m = s.match(/[A-Za-z]+/);
+      let arr = (m? m[0] : s).split('').map(ch=> base.indexOf(ch.toUpperCase()) );
+      if(arr.some(x=>x<0)) arr = [0];
+      for(let i=arr.length-1;i>=0;i--){
+        if(arr[i] < 25){ arr[i]++; for(let j=i+1;j<arr.length;j++) arr[j]=0; return arr.map(x=>base[x]).join(''); }
+      }
+      // 桁上がり
+      return base[0] + arr.map(x=>base[x]).join('');
+    }
+
+    runEl.addEventListener('click', async ()=>{
+      if(!fileEl.files?.[0]) return;
+      runEl.disabled = true; progEl.hidden=false; progEl.value=0; infoEl.textContent='分割中...';
+      try{
+        const arr = await fileEl.files[0].arrayBuffer();
+        const src = await PDFLib.PDFDocument.load(arr);
+        const pre = prefixEl.value || '';
+        const suf = suffixEl.value || '';
+        let token = startEl.value || (modeEl.value==='number'?'01':'A');
+        const outType = outTypeEl.value;
+        const zip = outType==='zip' ? new JSZip() : null;
+
+        for(let i=0;i<src.getPageCount();i++){
+          const pdf = await PDFLib.PDFDocument.create();
+          const [page] = await pdf.copyPages(src,[i]);
+          pdf.addPage(page);
+          const bytes = await pdf.save();
+          const filename = `${pre}${token}${suf}.pdf`;
+          if(zip){ zip.file(filename, bytes); }
+          else { downloadBlob(new Blob([bytes],{type:'application/pdf'}), filename); }
+          token = incToken(token, modeEl.value, caseSelEl.value);
+          progEl.value = Math.round(((i+1)/src.getPageCount())*100);
+        }
+
+        if(zip){
+          infoEl.textContent='ZIP作成中...';
+          const blob = await zip.generateAsync({type:'blob'});
+          const safeName = (fileEl.files[0].name.replace(/\.pdf$/i,'') || 'split') + '_pages.zip';
+          downloadBlob(blob, safeName);
+        }
+        infoEl.textContent = `完了: ${src.getPageCount()} ファイル`;
+      }catch(e){
+        console.error(e); infoEl.textContent = '処理中にエラーが発生しました';
+      }finally{
+        runEl.disabled=false; progEl.hidden=true;
+      }
+    });
+
+    function downloadBlob(blob, filename){
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=filename; a.style.display='none';
+      document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+  </script>
+</body>
+</html>
